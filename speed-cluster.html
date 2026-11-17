@@ -1,0 +1,564 @@
+<title>Speed Cluster</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one centered column. Instrument gauge on top, stat tiles, then controls. Dark-first, like a car cluster. */
+:root {
+  --bg: #0a0e13;
+  --panel: #10171f;
+  --line: #1f2b37;
+  --ink: #e8eef4;
+  --dim: #8593a3;
+  --accent: #3fd8c9;
+  --on-accent: #04211e;
+  --ok: #3ddc84;
+  --warn: #ffb020;
+  --crit: #ff4d57;
+  --on-crit: #17060a;
+  --crit-soft: rgba(255, 77, 87, 0.16);
+  --font-display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --line: #d5dde6;
+    --ink: #0f1a24;
+    --dim: #566474;
+    --accent: #00857a;
+    --on-accent: #ffffff;
+    --ok: #1a8f4d;
+    --warn: #9a5b00;
+    --crit: #d4202c;
+    --on-crit: #ffffff;
+    --crit-soft: rgba(212, 32, 44, 0.14);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef2f6;
+  --panel: #ffffff;
+  --line: #d5dde6;
+  --ink: #0f1a24;
+  --dim: #566474;
+  --accent: #00857a;
+  --on-accent: #ffffff;
+  --ok: #1a8f4d;
+  --warn: #9a5b00;
+  --crit: #d4202c;
+  --on-crit: #ffffff;
+  --crit-soft: rgba(212, 32, 44, 0.14);
+  color-scheme: light;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-block: 20px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font: 600 20px/1.2 var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); font-size: 13px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.crit { background: var(--crit); }
+
+.cluster {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+  padding: 14px 12px 16px; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cluster[data-over="true"] { border-color: var(--crit); box-shadow: 0 0 0 1px var(--crit), 0 0 36px var(--crit-soft); }
+#gauge { display: block; width: 100%; max-width: 460px; height: auto; margin: 0 auto; }
+.track { fill: none; stroke: var(--line); stroke-width: 14; }
+.zone { fill: none; stroke: var(--crit); stroke-width: 14; opacity: 0.5; }
+.prog { fill: none; stroke: var(--accent); stroke-width: 14; stroke-linecap: round; }
+.cluster[data-over="true"] .prog { stroke: var(--crit); }
+.knob { fill: var(--ink); stroke: var(--bg); stroke-width: 3; }
+.tick { stroke: var(--dim); stroke-width: 2; }
+.tick.major { stroke: var(--ink); stroke-width: 3; }
+.lab { fill: var(--dim); font: 500 14px var(--font-display); text-anchor: middle; dominant-baseline: central; }
+.num { fill: var(--ink); font: 600 104px var(--font-display); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.cluster[data-over="true"] .num { fill: var(--crit); }
+.unit { fill: var(--dim); font: 500 20px var(--font-display); letter-spacing: 0.16em; text-anchor: middle; text-transform: uppercase; }
+.limtxt { fill: var(--dim); font: 500 14px var(--font-display); letter-spacing: 0.14em; text-anchor: middle; text-transform: uppercase; }
+
+.alert {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: fit-content; max-width: 100%; min-height: 44px; margin: 4px auto 0; padding: 8px 18px;
+  border: 1px solid var(--line); border-radius: 999px;
+  font: 600 15px var(--font-display); letter-spacing: 0.06em; text-align: center;
+}
+.alert::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
+.cluster[data-over="true"] .alert { background: var(--crit); border-color: var(--crit); color: var(--on-crit); }
+.cluster[data-over="true"] .alert::before { background: var(--on-crit); }
+@media (prefers-reduced-motion: no-preference) {
+  .cluster[data-over="true"] .alert { animation: pulse 0.7s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.7; } }
+}
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.tile .k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.tile .v { font: 600 24px/1.25 var(--font-display); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile .v small { font-size: 13px; color: var(--dim); font-weight: 500; margin-left: 4px; }
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn {
+  flex: 1 1 140px; min-height: 48px; padding: 0 18px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  font: 600 15px var(--font-display); letter-spacing: 0.05em; cursor: pointer;
+}
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.btn:focus-visible, .seg button:focus-visible, .switch:focus-visible, .stepper input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.settings { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 6px 14px; }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; }
+.field + .field { border-top: 1px solid var(--line); }
+.field .lbl { font-weight: 500; }
+.field .sub { display: block; font-size: 12px; color: var(--dim); font-weight: 400; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper input {
+  width: 76px; min-height: 44px; text-align: center; border: 1px solid var(--line); border-radius: 10px;
+  background: transparent; color: var(--ink); font: 600 20px var(--font-display);
+  font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield;
+}
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+  background: transparent; color: var(--ink); font: 600 22px var(--font-display); cursor: pointer;
+}
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--dim); font: 600 14px var(--font-display); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.switch { position: relative; width: 52px; height: 30px; border: 0; border-radius: 999px; background: var(--line); cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(22px); background: var(--on-accent); }
+.row-end { display: flex; align-items: center; gap: 10px; }
+.link-btn { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 600 13px var(--font-display); letter-spacing: 0.05em; cursor: pointer; }
+.note { margin: 0; font-size: 13px; color: var(--warn); line-height: 1.5; }
+</style>
+
+<main class="app">
+  <header class="top">
+    <h1>Speed Cluster</h1>
+    <div class="chip"><span class="dot" id="gpsDot"></span><span id="gpsText">GPS off</span></div>
+  </header>
+
+  <section class="cluster" id="cluster" data-over="false" aria-label="Speed">
+    <svg id="gauge" viewBox="0 0 400 330" role="img" aria-label="Speedometer">
+      <g id="gStatic"></g>
+      <path id="gProg" class="prog" d=""></path>
+      <circle id="gKnob" class="knob" r="9" cx="0" cy="0" visibility="hidden"></circle>
+      <text id="gNum" class="num" x="200" y="224">0</text>
+      <text id="gUnit" class="unit" x="200" y="254">km/h</text>
+      <text id="gLim" class="limtxt" x="200" y="284">Limit 50</text>
+    </svg>
+    <div class="alert" id="alertPill" role="status" aria-live="polite"><span id="alertText">Alarm armed above 50 km/h</span></div>
+  </section>
+
+  <section class="stats" aria-label="Trip">
+    <div class="tile"><div class="k">Top speed</div><div class="v"><span id="sMax">0</span><small class="u">km/h</small></div></div>
+    <div class="tile"><div class="k">Average</div><div class="v"><span id="sAvg">&mdash;</span><small class="u">km/h</small></div></div>
+    <div class="tile"><div class="k">Trip</div><div class="v"><span id="sDist">0.0</span><small id="sDistU">km</small></div></div>
+    <div class="tile"><div class="k">Heading</div><div class="v"><span id="sHead">&mdash;</span></div></div>
+  </section>
+
+  <div class="actions">
+    <button class="btn primary" id="startBtn" type="button">Start GPS</button>
+    <button class="btn" id="demoBtn" type="button">Demo drive</button>
+  </div>
+  <p class="note" id="note" hidden></p>
+
+  <section class="settings" aria-label="Settings">
+    <div class="field">
+      <div class="lbl">Alarm limit<span class="sub">Beeps while speed is above this</span></div>
+      <div class="stepper">
+        <button class="icon-btn" id="limDown" type="button" aria-label="Lower limit by 5">&minus;</button>
+        <input id="limit" type="number" inputmode="numeric" min="5" max="300" value="50" aria-label="Alarm limit">
+        <button class="icon-btn" id="limUp" type="button" aria-label="Raise limit by 5">+</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="lbl">Units</div>
+      <div class="seg" role="group" aria-label="Units">
+        <button type="button" id="uKmh" aria-pressed="true">km/h</button>
+        <button type="button" id="uMph" aria-pressed="false">mph</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="lbl">Alarm sound</div>
+      <div class="row-end">
+        <button class="link-btn" id="testBtn" type="button">Test</button>
+        <button class="switch" id="soundSw" type="button" role="switch" aria-checked="true" aria-label="Alarm sound"></button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="lbl">Trip stats<span class="sub">Top speed, average and distance</span></div>
+      <button class="link-btn" id="resetBtn" type="button">Reset trip</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var KMH = 3.6, MPH = 2.236936;
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+
+  /* ---------- settings ---------- */
+  var S = { limit: 50, unit: 'kmh', sound: true };
+  try {
+    var raw = localStorage.getItem('speedcluster:v1');
+    if (raw) {
+      var j = JSON.parse(raw);
+      if (j && typeof j === 'object') {
+        if (isFinite(j.limit)) S.limit = Math.min(300, Math.max(5, Math.round(j.limit)));
+        if (j.unit === 'kmh' || j.unit === 'mph') S.unit = j.unit;
+        if (typeof j.sound === 'boolean') S.sound = j.sound;
+      }
+    }
+  } catch (e) {}
+  function save() { try { localStorage.setItem('speedcluster:v1', JSON.stringify(S)); } catch (e) {} }
+  function uLabel() { return S.unit === 'kmh' ? 'km/h' : 'mph'; }
+  function toUnit(ms) { return ms * (S.unit === 'kmh' ? KMH : MPH); }
+
+  /* ---------- state ---------- */
+  var mode = 'off'; // off | gps | demo
+  var watchId = null, demoTimer = null, demoT0 = 0, searchTimer = null, wake = null;
+  var target = 0, disp = 0, maxMs = 0, distM = 0, movingS = 0;
+  var heading = null, accuracy = null, prev = null, lastFix = 0, lastSampleT = 0;
+  var over = false, alarmTimer = null, ctx = null, statusOverride = null;
+
+  /* ---------- audio ---------- */
+  function ensureAudio() {
+    if (!ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { try { ctx = new AC(); } catch (e) { ctx = null; } }
+    }
+    if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+    return ctx;
+  }
+  function beep() {
+    if (!ctx) return;
+    try {
+      var t = ctx.currentTime;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(988, t);
+      o.frequency.setValueAtTime(740, t + 0.14);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t + 0.32);
+    } catch (e) {}
+  }
+  function syncAlarm(immediate) {
+    if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
+    if (over && S.sound && ctx) {
+      if (immediate) beep();
+      alarmTimer = setInterval(beep, 650);
+    }
+  }
+
+  /* ---------- gauge ---------- */
+  var CX = 200, CY = 200, R = 150, gMax = 120;
+  function polar(r, deg) { var a = deg * Math.PI / 180; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; }
+  function arcPath(v0, v1, max, r) {
+    r = r || R;
+    var a0 = 135 + 270 * v0 / max, a1 = 135 + 270 * v1 / max;
+    var p0 = polar(r, a0), p1 = polar(r, a1);
+    return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
+  }
+  function mk(name, attrs, parent) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function buildGauge() {
+    var base = S.unit === 'kmh' ? 120 : 80;
+    gMax = Math.max(base, Math.ceil(S.limit * 1.6 / 20) * 20);
+    var step = gMax <= 120 ? 10 : 20;
+    var majorEvery = step === 10 ? 2 : 1;
+    var g = $('gStatic');
+    while (g.firstChild) g.removeChild(g.firstChild);
+    mk('path', { d: arcPath(0, gMax, gMax), 'class': 'track' }, g);
+    if (S.limit < gMax) mk('path', { d: arcPath(S.limit, gMax, gMax), 'class': 'zone' }, g);
+    for (var v = 0, i = 0; v <= gMax; v += step, i++) {
+      var ang = 135 + 270 * v / gMax;
+      var major = i % majorEvery === 0;
+      var a = polar(134, ang), b = polar(major ? 118 : 126, ang);
+      mk('line', { x1: a[0].toFixed(2), y1: a[1].toFixed(2), x2: b[0].toFixed(2), y2: b[1].toFixed(2), 'class': 'tick' + (major ? ' major' : '') }, g);
+      if (major) {
+        var l = polar(100, ang);
+        var t = mk('text', { x: l[0].toFixed(2), y: l[1].toFixed(2), 'class': 'lab' }, g);
+        t.textContent = String(v);
+      }
+    }
+    $('gUnit').textContent = uLabel();
+    $('gLim').textContent = 'Limit ' + S.limit;
+    lastProg = null;
+  }
+  var lastProg = null;
+  function renderGauge() {
+    var val = toUnit(disp);
+    var clamped = Math.min(val, gMax);
+    var d = clamped > 0.4 ? arcPath(0, clamped, gMax) : '';
+    if (d !== lastProg) {
+      lastProg = d;
+      $('gProg').setAttribute('d', d);
+      var knob = $('gKnob');
+      if (d) {
+        var p = polar(R, 135 + 270 * clamped / gMax);
+        knob.setAttribute('cx', p[0].toFixed(2));
+        knob.setAttribute('cy', p[1].toFixed(2));
+        knob.setAttribute('visibility', 'visible');
+      } else knob.setAttribute('visibility', 'hidden');
+    }
+    var txt = String(Math.round(val));
+    if ($('gNum').textContent !== txt) $('gNum').textContent = txt;
+  }
+
+  /* ---------- alert ---------- */
+  function updateAlertText() {
+    var t;
+    if (over) t = 'Slow down · over ' + S.limit + ' ' + uLabel();
+    else if (mode === 'off') t = 'Alarm armed above ' + S.limit + ' ' + uLabel();
+    else t = 'Within ' + S.limit + ' ' + uLabel();
+    $('alertText').textContent = t;
+  }
+  function setOver(v) {
+    if (v === over) return;
+    over = v;
+    $('cluster').setAttribute('data-over', v ? 'true' : 'false');
+    updateAlertText();
+    syncAlarm(true);
+    if (v) { try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {} }
+  }
+  function checkAlarm() {
+    var v = Math.round(toUnit(target));
+    if (!over && v > S.limit) setOver(true);
+    else if (over && v <= S.limit - 1) setOver(false);
+    else updateAlertText();
+  }
+
+  /* ---------- stats and status ---------- */
+  function compass(d) { return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8]; }
+  function updateStats() {
+    $('sMax').textContent = String(Math.round(toUnit(maxMs)));
+    $('sAvg').textContent = movingS > 5 ? String(Math.round(toUnit(distM / movingS))) : '—';
+    var us = document.querySelectorAll('.u');
+    for (var i = 0; i < us.length; i++) us[i].textContent = uLabel();
+    $('sDist').textContent = ((distM / 1000) * (S.unit === 'kmh' ? 1 : 0.621371)).toFixed(1);
+    $('sDistU').textContent = S.unit === 'kmh' ? 'km' : 'mi';
+    $('sHead').textContent = heading == null ? '—' : compass(heading) + ' ' + Math.round(heading) + '°';
+  }
+  function setStatus() {
+    var dot = $('gpsDot'), txt = $('gpsText'), cls = '', msg = '';
+    if (statusOverride) { cls = statusOverride.cls; msg = statusOverride.msg; }
+    else if (mode === 'off') { msg = 'GPS off'; }
+    else if (mode === 'demo') { cls = 'warn'; msg = 'Demo drive'; }
+    else if (!lastFix) { cls = 'warn'; msg = 'Searching for GPS…'; }
+    else if (Date.now() - lastFix > 6000) { cls = 'warn'; msg = 'Signal lost'; }
+    else if (accuracy != null && accuracy <= 30) { cls = 'ok'; msg = 'GPS locked · ±' + Math.round(accuracy) + ' m'; }
+    else { cls = 'warn'; msg = 'GPS weak' + (accuracy != null ? ' · ±' + Math.round(accuracy) + ' m' : ''); }
+    dot.className = 'dot' + (cls ? ' ' + cls : '');
+    txt.textContent = msg;
+    $('startBtn').textContent = mode === 'gps' ? 'Stop GPS' : 'Start GPS';
+    $('demoBtn').textContent = mode === 'demo' ? 'Stop demo' : 'Demo drive';
+  }
+  function showNote(msg) { var n = $('note'); if (msg) { n.textContent = msg; n.hidden = false; } else { n.hidden = true; } }
+
+  /* ---------- sampling ---------- */
+  function sample(v, acc, hd, tMs) {
+    if (!(v >= 0) || !isFinite(v)) v = 0;
+    if (v < 0.7) v = 0;
+    if (lastSampleT && tMs > lastSampleT) {
+      var dt = Math.min(5, (tMs - lastSampleT) / 1000);
+      distM += v * dt;
+      if (v > 0.7) movingS += dt;
+    }
+    lastSampleT = tMs;
+    target = v;
+    if (v > maxMs) maxMs = v;
+    if (acc != null) accuracy = acc;
+    heading = hd;
+    lastFix = Date.now();
+    checkAlarm();
+    updateStats();
+    setStatus();
+  }
+  function hav(a, b, c, d) {
+    var R2 = 6371000, t = function (x) { return x * Math.PI / 180; };
+    var dl = t(c - a), dn = t(d - b);
+    var s = Math.pow(Math.sin(dl / 2), 2) + Math.cos(t(a)) * Math.cos(t(c)) * Math.pow(Math.sin(dn / 2), 2);
+    return 2 * R2 * Math.asin(Math.sqrt(s));
+  }
+  function onPos(p) {
+    var c = p.coords, v = c.speed, derived = false;
+    if (v == null || !isFinite(v)) {
+      derived = true;
+      if (prev && p.timestamp > prev.t) v = hav(prev.lat, prev.lon, c.latitude, c.longitude) / ((p.timestamp - prev.t) / 1000);
+      else v = 0;
+    }
+    prev = { lat: c.latitude, lon: c.longitude, t: p.timestamp };
+    if (derived && c.accuracy > 80) { accuracy = c.accuracy; setStatus(); return; }
+    statusOverride = null;
+    showNote('');
+    sample(Math.min(v, 100), c.accuracy, (c.heading != null && isFinite(c.heading)) ? c.heading : null, p.timestamp);
+  }
+  function onErr(e) {
+    if (e && e.code === 1) {
+      stopAll();
+      statusOverride = { cls: 'crit', msg: 'Location blocked' };
+      showNote('Location is blocked for this page. Allow location in your browser or app settings, or use Demo drive to try the alarm.');
+      setStatus();
+    } else if (e && e.code === 2) {
+      statusOverride = { cls: 'warn', msg: 'No GPS signal' };
+      setStatus();
+    } else {
+      setStatus();
+    }
+  }
+
+  /* ---------- wake lock ---------- */
+  function lock() {
+    try {
+      if ('wakeLock' in navigator && !wake) {
+        navigator.wakeLock.request('screen').then(function (w) {
+          wake = w;
+          w.addEventListener('release', function () { wake = null; });
+        }).catch(function () { wake = null; });
+      }
+    } catch (e) { wake = null; }
+  }
+  function unlock() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && mode !== 'off') lock(); });
+
+  /* ---------- modes ---------- */
+  function stopAll() {
+    if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} watchId = null; }
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
+    mode = 'off';
+    target = 0; lastFix = 0; lastSampleT = 0; prev = null; heading = null; accuracy = null;
+    unlock();
+    checkAlarm();
+    updateStats();
+    setStatus();
+  }
+  function startGps() {
+    ensureAudio();
+    stopAll();
+    statusOverride = null;
+    showNote('');
+    if (!navigator.geolocation) {
+      statusOverride = { cls: 'crit', msg: 'No GPS here' };
+      showNote('This device or view has no location access. Use Demo drive to try the alarm.');
+      setStatus();
+      return;
+    }
+    mode = 'gps';
+    setStatus();
+    lock();
+    try {
+      watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    } catch (e) { onErr({ code: 1 }); return; }
+    searchTimer = setTimeout(function () {
+      if (mode === 'gps' && !lastFix) showNote('No GPS fix yet. If this view blocks location, use Demo drive to try the alarm.');
+    }, 12000);
+  }
+  function startDemo() {
+    ensureAudio();
+    stopAll();
+    statusOverride = null;
+    showNote('');
+    mode = 'demo';
+    demoT0 = performance.now();
+    lock();
+    setStatus();
+    demoTimer = setInterval(function () {
+      var t = (performance.now() - demoT0) / 1000;
+      var kmh = 38 - 38 * Math.cos(2 * Math.PI * t / 32) + 2 * Math.sin(t * 2.3);
+      sample(Math.max(0, kmh) / KMH, 6, (t * 9) % 360, Date.now());
+    }, 200);
+  }
+  setInterval(function () {
+    if (mode === 'gps' && lastFix && Date.now() - lastFix > 10000 && target !== 0) { target = 0; checkAlarm(); updateStats(); }
+    if (mode === 'gps') setStatus();
+  }, 1000);
+
+  /* ---------- controls ---------- */
+  function syncControls() {
+    $('limit').value = String(S.limit);
+    $('uKmh').setAttribute('aria-pressed', S.unit === 'kmh' ? 'true' : 'false');
+    $('uMph').setAttribute('aria-pressed', S.unit === 'mph' ? 'true' : 'false');
+    $('soundSw').setAttribute('aria-checked', S.sound ? 'true' : 'false');
+  }
+  function setLimit(n) {
+    n = Math.round(Number(n));
+    if (!isFinite(n)) n = S.limit;
+    S.limit = Math.min(300, Math.max(5, n));
+    save(); syncControls(); buildGauge(); checkAlarm(); renderGauge();
+  }
+  function setUnit(u) {
+    if (u === S.unit) return;
+    S.limit = Math.round(S.limit * (u === 'mph' ? 0.621371 : 1.609344));
+    S.limit = Math.min(300, Math.max(5, S.limit));
+    S.unit = u;
+    save(); syncControls(); buildGauge(); updateStats(); checkAlarm(); renderGauge();
+  }
+  $('startBtn').addEventListener('click', function () { if (mode === 'gps') stopAll(); else startGps(); });
+  $('demoBtn').addEventListener('click', function () { if (mode === 'demo') stopAll(); else startDemo(); });
+  $('limDown').addEventListener('click', function () { setLimit(S.limit - 5); });
+  $('limUp').addEventListener('click', function () { setLimit(S.limit + 5); });
+  $('limit').addEventListener('change', function () { setLimit($('limit').value); });
+  $('uKmh').addEventListener('click', function () { setUnit('kmh'); });
+  $('uMph').addEventListener('click', function () { setUnit('mph'); });
+  $('soundSw').addEventListener('click', function () {
+    S.sound = !S.sound; save(); syncControls();
+    if (S.sound) ensureAudio();
+    syncAlarm(true);
+  });
+  $('testBtn').addEventListener('click', function () {
+    if (!ensureAudio()) { showNote('This view cannot play sound.'); return; }
+    beep(); setTimeout(beep, 650);
+  });
+  $('resetBtn').addEventListener('click', function () { maxMs = 0; distM = 0; movingS = 0; updateStats(); });
+
+  /* ---------- loop ---------- */
+  var lastFrame = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.25, (now - lastFrame) / 1000);
+    lastFrame = now;
+    disp += (target - disp) * Math.min(1, dt * 5);
+    if (Math.abs(target - disp) < 0.01) disp = target;
+    renderGauge();
+    requestAnimationFrame(frame);
+  }
+
+  syncControls();
+  buildGauge();
+  updateAlertText();
+  updateStats();
+  setStatus();
+  renderGauge();
+  requestAnimationFrame(frame);
+})();
+</script>
